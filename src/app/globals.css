@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --paper-noise: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.11 0 0 0 0 0.09 0 0 0 0 0.07 0 0 0 0.08 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  html, body {
+    height: 100%;
+    background-color: theme('colors.cream.DEFAULT');
+    color: theme('colors.ink.DEFAULT');
+  }
+
+  body {
+    font-family: var(--font-manrope), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: var(--paper-noise);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 1;
+    mix-blend-mode: multiply;
+  }
+
+  ::selection {
+    background-color: theme('colors.gold.DEFAULT');
+    color: theme('colors.ink.DEFAULT');
+  }
+}
+
+@layer components {
+  .display {
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-variation-settings: 'opsz' 144, 'SOFT' 30, 'WONK' 1;
+    letter-spacing: -0.025em;
+  }
+
+  .display-italic {
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-style: italic;
+    font-variation-settings: 'opsz' 144, 'SOFT' 100, 'WONK' 1;
+  }
+
+  .eyebrow {
+    @apply text-[11px] uppercase tracking-widest text-ink-mute font-semibold;
+  }
+
+  .field-input {
+    @apply w-full bg-transparent border-0 border-b border-ink py-2.5 text-base text-ink outline-none transition-colors;
+    @apply focus:border-bordeaux placeholder:text-ink-mute placeholder:opacity-60;
+  }
+
+  .btn-primary {
+    @apply bg-ink text-cream-light px-7 py-4 text-[13px] uppercase tracking-wider font-semibold cursor-pointer transition-colors;
+    @apply hover:bg-bordeaux disabled:opacity-50 disabled:cursor-wait;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent border border-ink text-ink px-4 py-2.5 text-[11px] uppercase tracking-wider font-semibold cursor-pointer transition-colors;
+    @apply hover:bg-ink hover:text-cream-light;
+  }
+
+  .app-content {
+    @apply relative z-10;
+  }
+}
+
+.react-pdf__Page__textContent { user-select: text; }
+.react-pdf__Page__annotations { display: none; }
+.react-pdf__Page__canvas {
+  margin: 0 auto;
+  box-shadow: 0 20px 50px -20px rgba(28, 22, 17, 0.4), 0 8px 16px -8px rgba(28, 22, 17, 0.2);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: theme('colors.cream.dark'); }
+::-webkit-scrollbar-thumb {
+  background: theme('colors.ink.mute');
+  border: 2px solid theme('colors.cream.dark');
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover { background: theme('colors.ink.soft'); }
