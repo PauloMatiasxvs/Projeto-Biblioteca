@@ -116,7 +116,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
       if (uploadError) throw uploadError;
       setProgress(80);
 
-      const { error: insertError } = await supabase.from('books').insert({
+const { error: insertError } = await (supabase.from('books') as any).insert({
         user_id: user.id,
         title: title.trim(),
         author: author.trim() || null,
