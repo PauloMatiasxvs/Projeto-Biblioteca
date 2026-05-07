@@ -14,7 +14,7 @@ import {
   titleFromFilename,
 } from '@/lib/utils';
 
-const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_SIZE = 50 * 1024 * 1024;
 
 type UploadDialogProps = {
   open: boolean;
@@ -73,13 +73,10 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     disabled: uploading,
   });
 
-  // Conta páginas usando pdfjs-dist no cliente
   async function countPages(file: File): Promise<number | null> {
     try {
       const pdfjs = await import('pdfjs-dist');
-      pdfjs.GlobalWorkerOptions.workerSrc = (
-        await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
-      ).default;
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
       const buf = await file.arrayBuffer();
       const doc = await pdfjs.getDocument({ data: buf }).promise;
       return doc.numPages;
@@ -101,7 +98,6 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Sessão expirada — faça login novamente.');
 
-      // Path: {user_id}/{timestamp}_{nome_sanitizado}.pdf
       const safeName = sanitizeFilename(file.name);
       const filePath = `${user.id}/${Date.now()}_${safeName}`;
 
@@ -132,7 +128,6 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
       });
 
       if (insertError) {
-        // limpa o arquivo em caso de erro de insert
         await supabase.storage.from('books').remove([filePath]);
         throw insertError;
       }
