@@ -1,11 +1,10 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import type { Database } from '@/lib/types';
 
 export function createClient() {
   const cookieStore = cookies();
 
-  return createServerClient<Database>(
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -19,7 +18,7 @@ export function createClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Server Components não podem setar cookies — middleware cuida disso
+            // Server Components não podem setar cookies
           }
         },
       },
