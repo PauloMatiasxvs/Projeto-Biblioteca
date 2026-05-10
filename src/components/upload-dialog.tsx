@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, FileText } from 'lucide-react';
+import { X, Upload, FileText, Check, AlertCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -16,29 +16,43 @@ import {
 
 const MAX_SIZE = 50 * 1024 * 1024;
 
-type UploadDialogProps = {
+type Status = 'pending' | 'uploading' | 'done' | 'error';
+
+type Item = {
+  file: File;
+  title: string;
+  status: Status;
+  progress: number;
+  error?: string;
+};
+
+type Props = {
   open: boolean;
   onClose: () => void;
 };
 
-export function UploadDialog({ open, onClose }: UploadDialogProps) {
+async function countPages(file: File): Promise<number | null> {
+  try {
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjs.getDocument({ data: buf }).promise;
+    return doc.numPages;
+  } catch {
+    return null;
+  }
+}
+
+export function UploadDialog({ open, onClose }: Props) {
   const supabase = createClient();
   const qc = useQueryClient();
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState('');
-  const [author, setAuthor] = useState('');
-  const [description, setDescription] = useState('');
-  const [progress, setProgress] = useState(0);
+  const [items, setItems] = useState<Item[]>([]);
   const [uploading, setUploading] = useState(false);
 
-  const reset = useCallback(() => {
-    setFile(null);
-    setTitle('');
-    setAuthor('');
-    setDescription('');
-    setProgress(0);
+  const reset = () => {
+    setItems([]);
     setUploading(false);
-  }, []);
+  };
 
   const handleClose = () => {
     if (uploading) return;
@@ -50,99 +64,110 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     if (rejected.length > 0) {
       const rej = rejected[0];
       if (rej.errors[0]?.code === 'file-too-large') {
-        toast.error('Arquivo muito grande. Máximo 50MB.');
+        toast.error('Algum arquivo passa de 50MB');
       } else if (rej.errors[0]?.code === 'file-invalid-type') {
-        toast.error('Apenas arquivos PDF são aceitos.');
+        toast.error('Apenas PDFs são aceitos');
       } else {
-        toast.error('Arquivo inválido.');
+        toast.error('Arquivos inválidos');
       }
-      return;
     }
-    const f = accepted[0];
-    if (f) {
-      setFile(f);
-      setTitle(titleFromFilename(f.name));
-    }
+    const newItems: Item[] = accepted.map((f) => ({
+      file: f,
+      title: titleFromFilename(f.name),
+      status: 'pending',
+      progress: 0,
+    }));
+    setItems((prev) => [...prev, ...newItems]);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'application/pdf': ['.pdf'] },
     maxSize: MAX_SIZE,
-    multiple: false,
+    multiple: true,
     disabled: uploading,
   });
 
-  async function countPages(file: File): Promise<number | null> {
-    try {
-      const pdfjs = await import('pdfjs-dist');
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
-      const buf = await file.arrayBuffer();
-      const doc = await pdfjs.getDocument({ data: buf }).promise;
-      return doc.numPages;
-    } catch {
-      return null;
-    }
-  }
+  const updateItem = (idx: number, patch: Partial<Item>) =>
+    setItems((arr) => arr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!file || !title.trim()) return;
+  const removeItem = (idx: number) => {
+    if (uploading) return;
+    setItems((arr) => arr.filter((_, i) => i !== idx));
+  };
 
-    setUploading(true);
-    setProgress(5);
-
+  async function uploadOne(idx: number, item: Item) {
+    updateItem(idx, { status: 'uploading', progress: 10 });
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('Sessão expirada — faça login novamente.');
+      if (!user) throw new Error('Sessão expirada');
 
-      const safeName = sanitizeFilename(file.name);
+      const safeName = sanitizeFilename(item.file.name);
       const filePath = `${user.id}/${Date.now()}_${safeName}`;
 
-      setProgress(15);
-      const pageCount = await countPages(file);
-      setProgress(35);
+      updateItem(idx, { progress: 25 });
+      const pageCount = await countPages(item.file);
+      updateItem(idx, { progress: 50 });
 
       const { error: uploadError } = await supabase.storage
         .from('books')
-        .upload(filePath, file, {
+        .upload(filePath, item.file, {
           contentType: 'application/pdf',
           cacheControl: '3600',
           upsert: false,
         });
-
       if (uploadError) throw uploadError;
-      setProgress(80);
+      updateItem(idx, { progress: 85 });
 
-const { error: insertError } = await (supabase.from('books') as any).insert({
+      const { error: insertError } = await supabase.from('books').insert({
         user_id: user.id,
-        title: title.trim(),
-        author: author.trim() || null,
-        description: description.trim() || null,
+        title: item.title.trim(),
+        author: null,
+        description: null,
         file_path: filePath,
-        file_size: file.size,
+        file_size: item.file.size,
         page_count: pageCount,
-        cover_hue: hueFromString(title.trim()),
+        cover_hue: hueFromString(item.title.trim()),
       });
-
       if (insertError) {
         await supabase.storage.from('books').remove([filePath]);
         throw insertError;
       }
 
-      setProgress(100);
-      toast.success('Livro adicionado à sua biblioteca');
-      qc.invalidateQueries({ queryKey: ['books'] });
+      updateItem(idx, { status: 'done', progress: 100 });
+    } catch (err: any) {
+      updateItem(idx, { status: 'error', error: err.message ?? 'Erro' });
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (items.length === 0) return;
+
+    setUploading(true);
+    for (let i = 0; i < items.length; i++) {
+      const cur = items[i];
+      if (cur.status === 'done') continue;
+      await uploadOne(i, cur);
+    }
+
+    qc.invalidateQueries({ queryKey: ['books'] });
+    const total = items.length;
+    const sucesso = items.filter((i) => i.status === 'done').length;
+
+    if (sucesso === total) {
+      toast.success(
+        total === 1 ? 'Livro adicionado' : `${total} livros adicionados`
+      );
       setTimeout(() => {
         reset();
         onClose();
-      }, 400);
-    } catch (err: any) {
-      toast.error(err.message ?? 'Erro ao enviar arquivo');
+      }, 600);
+    } else {
+      toast(`${sucesso}/${total} concluídos`);
       setUploading(false);
-      setProgress(0);
     }
   }
 
@@ -169,127 +194,95 @@ const { error: insertError } = await (supabase.from('books') as any).insert({
             <div className="bg-cream-light w-full max-w-xl max-h-[90vh] overflow-auto pointer-events-auto border border-ink/15 shadow-[0_30px_60px_-20px_rgba(28,22,17,0.4)]">
               <div className="flex items-start justify-between px-7 pt-7 pb-3 border-b border-ink/10">
                 <div>
-                  <p className="eyebrow mb-1.5">Novo registro</p>
+                  <p className="eyebrow mb-1.5">Novos livros</p>
                   <h2 className="display text-[28px] leading-tight font-normal">
-                    Adicionar <span className="display-italic text-bordeaux">livro</span>
+                    Adicionar <span className="display-italic text-bordeaux">livros</span>
                   </h2>
                 </div>
                 <button
                   onClick={handleClose}
                   disabled={uploading}
                   className="text-ink-mute hover:text-ink disabled:opacity-30"
-                  aria-label="Fechar"
                 >
                   <X size={20} />
                 </button>
               </div>
 
               <form onSubmit={handleSubmit} className="p-7 space-y-5">
-                {!file ? (
-                  <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed cursor-pointer transition-colors p-10 text-center ${
-                      isDragActive
-                        ? 'border-bordeaux bg-bordeaux/5'
-                        : 'border-ink/30 hover:border-ink/50 hover:bg-cream'
-                    }`}
-                  >
-                    <input {...getInputProps()} />
-                    <Upload
-                      size={28}
-                      className="mx-auto text-ink-mute mb-3"
-                      strokeWidth={1.3}
-                    />
-                    <p className="font-serif italic text-[17px] text-ink">
-                      {isDragActive ? 'Solte aqui…' : 'Arraste seu PDF'}
-                    </p>
-                    <p className="text-[13px] text-ink-mute mt-1">
-                      ou clique para escolher · até 50MB
-                    </p>
-                  </div>
-                ) : (
-                  <div className="border border-ink/15 bg-cream p-4 flex items-center gap-4">
-                    <FileText size={24} className="text-bordeaux flex-shrink-0" strokeWidth={1.3} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-[14px] text-ink truncate">{file.name}</p>
-                      <p className="text-[12px] text-ink-mute">{formatBytes(file.size)}</p>
-                    </div>
-                    {!uploading && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFile(null);
-                          setTitle('');
-                        }}
-                        className="text-ink-mute hover:text-bordeaux text-[11px] uppercase tracking-wider font-semibold"
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed cursor-pointer transition-colors p-8 text-center ${
+                    isDragActive
+                      ? 'border-bordeaux bg-bordeaux/5'
+                      : 'border-ink/30 hover:border-ink/50 hover:bg-cream'
+                  }`}
+                >
+                  <input {...getInputProps()} />
+                  <Upload size={26} className="mx-auto text-ink-mute mb-3" strokeWidth={1.3} />
+                  <p className="font-serif italic text-[16px] text-ink">
+                    {isDragActive ? 'Solte aqui…' : 'Arraste 1 ou vários PDFs'}
+                  </p>
+                  <p className="text-[12px] text-ink-mute mt-1">
+                    ou clique para escolher · até 50MB cada
+                  </p>
+                </div>
+
+                {items.length > 0 && (
+                  <div className="space-y-2 max-h-[280px] overflow-auto pr-1">
+                    {items.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="border border-ink/15 bg-cream p-3 flex items-center gap-3"
                       >
-                        Trocar
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {file && (
-                  <>
-                    <div>
-                      <label htmlFor="upload-title" className="eyebrow block mb-2">
-                        Título
-                      </label>
-                      <input
-                        id="upload-title"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        required
-                        disabled={uploading}
-                        className="field-input"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="upload-author" className="eyebrow block mb-2">
-                        Autor (opcional)
-                      </label>
-                      <input
-                        id="upload-author"
-                        value={author}
-                        onChange={(e) => setAuthor(e.target.value)}
-                        disabled={uploading}
-                        placeholder="ex.: Clarice Lispector"
-                        className="field-input"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="upload-desc" className="eyebrow block mb-2">
-                        Anotação (opcional)
-                      </label>
-                      <textarea
-                        id="upload-desc"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        disabled={uploading}
-                        rows={2}
-                        placeholder="Por que este livro?"
-                        className="field-input resize-none"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {uploading && (
-                  <div>
-                    <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-ink-mute mb-1.5">
-                      <span>Enviando</span>
-                      <span>{progress}%</span>
-                    </div>
-                    <div className="h-[3px] bg-cream-dark overflow-hidden">
-                      <motion.div
-                        className="h-full bg-bordeaux"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ ease: 'easeOut' }}
-                      />
-                    </div>
+                        <div className="flex-shrink-0">
+                          {item.status === 'done' ? (
+                            <Check size={18} className="text-moss" />
+                          ) : item.status === 'error' ? (
+                            <AlertCircle size={18} className="text-bordeaux" />
+                          ) : item.status === 'uploading' ? (
+                            <Loader2 size={18} className="animate-spin text-bordeaux" />
+                          ) : (
+                            <FileText size={18} className="text-ink-mute" strokeWidth={1.3} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {item.status === 'pending' && !uploading ? (
+                            <input
+                              value={item.title}
+                              onChange={(e) => updateItem(idx, { title: e.target.value })}
+                              className="w-full bg-transparent border-b border-ink/30 text-[14px] outline-none focus:border-ink"
+                            />
+                          ) : (
+                            <p className="font-medium text-[13px] text-ink truncate">
+                              {item.title}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-ink-mute truncate">
+                            {item.error
+                              ? item.error
+                              : `${item.file.name} · ${formatBytes(item.file.size)}`}
+                          </p>
+                          {item.status === 'uploading' && (
+                            <div className="mt-1.5 h-[2px] bg-cream-dark">
+                              <motion.div
+                                className="h-full bg-bordeaux"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${item.progress}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                        {!uploading && item.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => removeItem(idx)}
+                            className="text-ink-mute hover:text-bordeaux text-[10px] uppercase tracking-wider"
+                          >
+                            Remover
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -304,10 +297,14 @@ const { error: insertError } = await (supabase.from('books') as any).insert({
                   </button>
                   <button
                     type="submit"
-                    disabled={!file || !title.trim() || uploading}
+                    disabled={items.length === 0 || uploading}
                     className="btn-primary"
                   >
-                    {uploading ? 'Enviando…' : 'Adicionar livro'}
+                    {uploading
+                      ? 'Enviando…'
+                      : items.length === 0
+                      ? 'Adicionar livros'
+                      : `Enviar ${items.length} ${items.length === 1 ? 'livro' : 'livros'}`}
                   </button>
                 </div>
               </form>

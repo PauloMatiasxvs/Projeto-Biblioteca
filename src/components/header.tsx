@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { BarChart3 } from 'lucide-react';
 import { logout } from '@/app/(auth)/actions';
 import { createClient } from '@/lib/supabase/server';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export async function Header() {
   const supabase = createClient();
@@ -30,12 +32,20 @@ export async function Header() {
           </h1>
         </Link>
 
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3">
           {displayName && (
-            <span className="hidden sm:inline-block font-serif italic text-[15px] text-ink-soft">
+            <span className="hidden sm:inline-block font-serif italic text-[15px] text-ink-soft mr-1">
               {displayName}
             </span>
           )}
+          <Link
+            href="/library/stats"
+            aria-label="Estatísticas"
+            className="w-9 h-9 flex items-center justify-center border border-ink/30 hover:bg-ink hover:text-cream-light transition-colors"
+          >
+            <BarChart3 size={15} strokeWidth={1.5} />
+          </Link>
+          <ThemeToggle />
           <form action={logout}>
             <button type="submit" className="btn-ghost">
               Sair

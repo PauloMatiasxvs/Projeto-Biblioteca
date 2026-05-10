@@ -1,17 +1,21 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, ChevronDown, Upload, LinkIcon } from 'lucide-react';
 import { useBooks } from '@/lib/hooks/use-books';
 import { BookCard } from '@/components/book-card';
 import { EmptyState } from '@/components/empty-state';
 import { UploadDialog } from '@/components/upload-dialog';
+import { UrlImportDialog } from '@/components/url-import-dialog';
+import { DailyQuote } from '@/components/daily-quote';
 
 type SortMode = 'recent' | 'title' | 'last-read';
 
 export function LibraryClient() {
   const { data: books, isLoading, error } = useBooks();
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [urlOpen, setUrlOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('recent');
 
@@ -61,6 +65,8 @@ export function LibraryClient() {
 
   return (
     <>
+      <DailyQuote />
+
       {!isEmpty && (
         <div className="border-b border-ink/15 px-6 sm:px-12 py-5 flex items-center justify-between gap-6 flex-wrap">
           <div className="flex items-center gap-6 flex-wrap">
@@ -95,19 +101,67 @@ export function LibraryClient() {
                       : 'text-ink-mute hover:text-ink'
                   }`}
                 >
-                  {mode === 'recent' ? 'Recente' : mode === 'title' ? 'Título' : 'Últ. leitura'}
+                  {mode === 'recent'
+                    ? 'Recente'
+                    : mode === 'title'
+                    ? 'Título'
+                    : 'Últ. leitura'}
                 </button>
               ))}
             </div>
           </div>
 
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="bg-ink text-cream-light px-5 py-2.5 text-[11px] uppercase tracking-widest font-semibold hover:bg-bordeaux transition-colors inline-flex items-center gap-2"
-          >
-            <Plus size={14} strokeWidth={2.5} />
-            Novo livro
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="bg-ink text-cream-light px-5 py-2.5 text-[11px] uppercase tracking-widest font-semibold hover:bg-bordeaux transition-colors inline-flex items-center gap-2"
+            >
+              <Plus size={14} strokeWidth={2.5} />
+              Novo livro
+              <ChevronDown size={13} />
+            </button>
+
+            {menuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 z-40 bg-cream-light border border-ink/20 shadow-[0_20px_40px_-15px_rgba(28,22,17,0.3)] min-w-[220px]">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setUploadOpen(true);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-cream-dark/40 transition-colors flex items-center gap-3 border-b border-ink/10"
+                  >
+                    <Upload size={14} strokeWidth={1.5} />
+                    <div>
+                      <p className="text-[13px] font-medium">Subir PDFs</p>
+                      <p className="text-[11px] text-ink-mute">
+                        Um ou vários do seu computador
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setUrlOpen(true);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-cream-dark/40 transition-colors flex items-center gap-3"
+                  >
+                    <LinkIcon size={14} strokeWidth={1.5} />
+                    <div>
+                      <p className="text-[13px] font-medium">Importar de URL</p>
+                      <p className="text-[11px] text-ink-mute">
+                        Baixar de um link público
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -128,6 +182,7 @@ export function LibraryClient() {
       )}
 
       <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      <UrlImportDialog open={urlOpen} onClose={() => setUrlOpen(false)} />
     </>
   );
 }

@@ -3,14 +3,43 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root,
+  [data-theme='light'] {
+    --color-cream: #f4ede0;
+    --color-cream-light: #faf6ec;
+    --color-cream-dark: #e8dfca;
+    --color-ink: #1c1611;
+    --color-ink-soft: #3d342a;
+    --color-ink-mute: #786a58;
+    --color-bordeaux: #6b2c2c;
+    --color-bordeaux-deep: #4a1d1d;
+    --color-gold: #c9a961;
+
     --paper-noise: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.11 0 0 0 0 0.09 0 0 0 0 0.07 0 0 0 0.08 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    --paper-noise-blend: multiply;
+    --paper-noise-opacity: 0.5;
+  }
+
+  [data-theme='dark'] {
+    --color-cream: #1a1410;
+    --color-cream-light: #221a14;
+    --color-cream-dark: #0f0b08;
+    --color-ink: #f0e6d0;
+    --color-ink-soft: #c9bea7;
+    --color-ink-mute: #8a7d68;
+    --color-bordeaux: #b8665c;
+    --color-bordeaux-deep: #8d4a42;
+    --color-gold: #d4b878;
+
+    --paper-noise-blend: screen;
+    --paper-noise-opacity: 0.08;
   }
 
   html, body {
     height: 100%;
-    background-color: theme('colors.cream.DEFAULT');
-    color: theme('colors.ink.DEFAULT');
+    background-color: var(--color-cream);
+    color: var(--color-ink);
+    transition: background-color 0.3s, color 0.3s;
   }
 
   body {
@@ -25,15 +54,15 @@
     position: fixed;
     inset: 0;
     background-image: var(--paper-noise);
-    opacity: 0.5;
+    opacity: var(--paper-noise-opacity);
     pointer-events: none;
     z-index: 1;
-    mix-blend-mode: multiply;
+    mix-blend-mode: var(--paper-noise-blend);
   }
 
   ::selection {
-    background-color: theme('colors.gold.DEFAULT');
-    color: theme('colors.ink.DEFAULT');
+    background-color: var(--color-gold);
+    color: var(--color-ink);
   }
 }
 
@@ -51,22 +80,37 @@
   }
 
   .eyebrow {
-    @apply text-[11px] uppercase tracking-widest text-ink-mute font-semibold;
+    @apply text-[11px] uppercase tracking-widest font-semibold;
+    color: var(--color-ink-mute);
   }
 
   .field-input {
-    @apply w-full bg-transparent border-0 border-b border-ink py-2.5 text-base text-ink outline-none transition-colors;
-    @apply focus:border-bordeaux placeholder:text-ink-mute placeholder:opacity-60;
+    @apply w-full bg-transparent border-0 border-b py-2.5 text-base outline-none transition-colors;
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+  }
+  .field-input:focus { border-color: var(--color-bordeaux); }
+  .field-input::placeholder {
+    color: var(--color-ink-mute);
+    opacity: 0.6;
   }
 
   .btn-primary {
-    @apply bg-ink text-cream-light px-7 py-4 text-[13px] uppercase tracking-wider font-semibold cursor-pointer transition-colors;
-    @apply hover:bg-bordeaux disabled:opacity-50 disabled:cursor-wait;
+    @apply px-7 py-4 text-[13px] uppercase tracking-wider font-semibold cursor-pointer transition-colors;
+    background-color: var(--color-ink);
+    color: var(--color-cream-light);
   }
+  .btn-primary:hover { background-color: var(--color-bordeaux); }
+  .btn-primary:disabled { opacity: 0.5; cursor: wait; }
 
   .btn-ghost {
-    @apply bg-transparent border border-ink text-ink px-4 py-2.5 text-[11px] uppercase tracking-wider font-semibold cursor-pointer transition-colors;
-    @apply hover:bg-ink hover:text-cream-light;
+    @apply bg-transparent border px-4 py-2.5 text-[11px] uppercase tracking-wider font-semibold cursor-pointer transition-colors;
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+  }
+  .btn-ghost:hover {
+    background-color: var(--color-ink);
+    color: var(--color-cream-light);
   }
 
   .app-content {
@@ -82,10 +126,10 @@
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: theme('colors.cream.dark'); }
+::-webkit-scrollbar-track { background: var(--color-cream-dark); }
 ::-webkit-scrollbar-thumb {
-  background: theme('colors.ink.mute');
-  border: 2px solid theme('colors.cream.dark');
+  background: var(--color-ink-mute);
+  border: 2px solid var(--color-cream-dark);
   border-radius: 5px;
 }
-::-webkit-scrollbar-thumb:hover { background: theme('colors.ink.soft'); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-soft); }
